@@ -175,8 +175,6 @@ export function AudioProvider({ children }) {
   }, [favorites]);
 
   // ── MediaNotificationService: ONE-TIME setup via stable refs ─────────────
-  // The callbacks passed here never change — they just forward to the refs,
-  // which are updated every render to point at the latest implementations.
   useEffect(() => {
     MediaNotificationService.createAndroidChannel();
     MediaNotificationService.setup({
@@ -187,13 +185,13 @@ export function AudioProvider({ children }) {
       onStop:     () => btStopRef.current?.(),
     });
     return () => MediaNotificationService.destroy();
-  }, []); // intentionally empty — runs once only
+  }, []);
 
   // ── Load on mount / track change ─────────────────────────────────────────
   useEffect(() => { getPermissionsAndLoadAudio(); }, []);
   useEffect(() => {
     if (audioFiles.length > 0) loadAudio();
-  }, [currentTrackIndex, audioFiles.length]); // eslint-disable-line
+  }, [currentTrackIndex, audioFiles.length]);
 
   // ─────────────────────────────────────────────────────────────────────────
   const getPermissionsAndLoadAudio = async () => {
@@ -204,133 +202,165 @@ export function AudioProvider({ children }) {
       const total = await MediaLibrary.getAssetsAsync({ mediaType: "audio", first: 1 });
       setTotalAudioCount(total.totalCount);
       const media = await MediaLibrary.getAssetsAsync({ mediaType: "audio", first: 1000 });
+      
       const basicAssets = await Promise.all(
         media.assets.map(async (asset) => {
           try {
             const info = await MediaLibrary.getAssetInfoAsync(asset.id);
             const localUri = info.localUri || asset.uri;
-            const mlArtist = info.artist && info.artist !== "Unknown Artist" ? info.artist : null;
-            return { ...asset, localUri, artist: mlArtist, album: info.album || null,
-              duration: info.duration, embeddedArtwork: null, folderArtwork: null,
-              onlineArtwork: null, metadataLoaded: false };
+            // Try to extract artist from filename if not available
+            let artist = null;
+            if (info.artist && info.artist !== "Unknown Artist") {
+              artist = info.artist;
+            }
+            
+            return { 
+              ...asset, 
+              localUri, 
+              artist: artist, 
+              album: info.album || null,
+              duration: info.duration, 
+              embeddedArtwork: null, 
+              folderArtwork: null,
+              onlineArtwork: null, 
+              metadataLoaded: false 
+            };
           } catch {
-            return { ...asset, localUri: asset.uri, artist: null, album: null,
-              embeddedArtwork: null, folderArtwork: null, onlineArtwork: null, metadataLoaded: false };
+            return { 
+              ...asset, 
+              localUri: asset.uri, 
+              artist: null, 
+              album: null,
+              embeddedArtwork: null, 
+              folderArtwork: null, 
+              onlineArtwork: null, 
+              metadataLoaded: false 
+            };
           }
         })
       );
+      
       setAudioFiles(basicAssets);
       setFilteredAudioFiles(basicAssets);
+      
+      // Start enriching metadata in background for all tracks
+      basicAssets.forEach((track, index) => {
+        enrichTrackMetadata(track, index);
+      });
+      
     } catch (e) { console.error("Error loading audio:", e); }
   };
 
   const enrichTrackMetadata = useCallback(async (track, index) => {
     if (!track || track.metadataLoaded || metadataCache[track.id]) return;
+    
     setMetadataCache((prev) => ({ ...prev, [track.id]: true }));
     const localUri = track.localUri || track.uri;
     const update = { metadataLoaded: true };
-    const embedded = await extractEmbeddedArtwork(localUri);
-    if (embedded.artwork) update.embeddedArtwork = embedded.artwork;
-    if (embedded.artist)  update.artist = embedded.artist;
-    if (!update.embeddedArtwork) {
-      const fa = await findFolderArt(localUri);
-      if (fa) update.folderArtwork = fa;
-    }
-    if (!update.embeddedArtwork && !update.folderArtwork) {
-      const online = await fetchOnlineMetadata(track.filename, update.artist || track.artist);
-      if (online?.artist && !update.artist) update.artist = online.artist;
-      if (online?.albumArtUrl) update.onlineArtwork = online.albumArtUrl;
-    }
-    setAudioFiles((prev) => {
-      const next = [...prev];
-      if (next[index]) next[index] = { ...next[index], ...update };
-      return next;
-    });
-    setFilteredAudioFiles((prev) =>
-      prev.map((f) => (f.id === track.id ? { ...f, ...update } : f))
-    );
-  }, [metadataCache]);
-
-  // ─── loadAudio ────────────────────────────────────────────────────────────
- const loadAudio = async () => {
-  const track = audioFiles[currentTrackIndex];
-  if (!track) return;
-
-  try {
-    setIsLoading(true);
-    setIsSoundLoaded(false);
-    isSoundLoadedRef.current = false;
-
-    if (soundRef.current) {
-      try { await soundRef.current.unloadAsync(); } catch (_) {}
-      soundRef.current = null;
-    }
-
-    const { sound } = await Audio.Sound.createAsync(
-      { uri: track.localUri || track.uri },
-      { shouldPlay: isPlayingRef.current, progressUpdateIntervalMillis: 1000 },
-      (status) => handleStatusUpdate(status)
-    );
-
-    soundRef.current = sound;
-    const status = await sound.getStatusAsync();
-    setDurationMillis(status.durationMillis || 0);
-    setPositionMillis(0);
-    setSliderValue(0);
-    setIsSoundLoaded(true);
-    isSoundLoadedRef.current = true;
-    setIsLoading(false);
-
-    // Show notification immediately (may have no artwork yet)
-    MediaNotificationService.update(track, isPlayingRef.current, 0);
-
-    // Enrich metadata in background, then update notification with real artwork
-    if (!track.metadataLoaded && !metadataCache[track.id]) {
-      const localUri = track.localUri || track.uri;
-      const enrichUpdate = { metadataLoaded: true };
-
+    
+    try {
+      // Extract embedded metadata
       const embedded = await extractEmbeddedArtwork(localUri);
-      if (embedded.artwork) enrichUpdate.embeddedArtwork = embedded.artwork;
-      if (embedded.artist)  enrichUpdate.artist = embedded.artist;
-
-      if (!enrichUpdate.embeddedArtwork) {
+      if (embedded.artwork) {
+        update.embeddedArtwork = embedded.artwork;
+        console.log("Found embedded artwork for:", track.filename);
+      }
+      if (embedded.artist) {
+        update.artist = embedded.artist;
+        console.log("Found embedded artist:", embedded.artist, "for:", track.filename);
+      }
+      
+      // If no embedded artwork, try folder art
+      if (!update.embeddedArtwork) {
         const fa = await findFolderArt(localUri);
-        if (fa) enrichUpdate.folderArtwork = fa;
+        if (fa) {
+          update.folderArtwork = fa;
+          console.log("Found folder artwork for:", track.filename);
+        }
       }
-
-      if (!enrichUpdate.embeddedArtwork && !enrichUpdate.folderArtwork) {
-        const online = await fetchOnlineMetadata(track.filename, enrichUpdate.artist || track.artist);
-        if (online?.artist && !enrichUpdate.artist) enrichUpdate.artist = online.artist;
-        if (online?.albumArtUrl) enrichUpdate.onlineArtwork = online.albumArtUrl;
+      
+      // If still no artwork, try online
+      if (!update.embeddedArtwork && !update.folderArtwork) {
+        const online = await fetchOnlineMetadata(track.filename, update.artist || track.artist);
+        if (online?.artist && !update.artist) {
+          update.artist = online.artist;
+          console.log("Found online artist:", online.artist, "for:", track.filename);
+        }
+        if (online?.albumArtUrl) {
+          update.onlineArtwork = online.albumArtUrl;
+          console.log("Found online artwork for:", track.filename);
+        }
       }
-
-      // Merge into state
-      setMetadataCache((prev) => ({ ...prev, [track.id]: true }));
-      const enrichedTrack = { ...track, ...enrichUpdate };
-
+      
+      // Update state with enriched metadata
       setAudioFiles((prev) => {
         const next = [...prev];
-        if (next[currentTrackIndex]) next[currentTrackIndex] = enrichedTrack;
+        if (next[index]) {
+          next[index] = { ...next[index], ...update };
+        }
         return next;
       });
+      
       setFilteredAudioFiles((prev) =>
-        prev.map((f) => (f.id === track.id ? { ...f, ...enrichUpdate } : f))
+        prev.map((f) => (f.id === track.id ? { ...f, ...update } : f))
+      );
+      
+      // If this is the current track, update notification
+      if (currentIdxRef.current === index) {
+        const updatedTrack = { ...track, ...update };
+        MediaNotificationService.update(updatedTrack, isPlayingRef.current, positionMillis);
+      }
+      
+    } catch (error) {
+      console.error("Error enriching metadata for:", track.filename, error);
+    }
+  }, [metadataCache, currentIdxRef, isPlayingRef, positionMillis]);
+
+  // ─── loadAudio ────────────────────────────────────────────────────────────
+  const loadAudio = async () => {
+    const track = audioFiles[currentTrackIndex];
+    if (!track) return;
+
+    try {
+      setIsLoading(true);
+      setIsSoundLoaded(false);
+      isSoundLoadedRef.current = false;
+
+      if (soundRef.current) {
+        try { await soundRef.current.unloadAsync(); } catch (_) {}
+        soundRef.current = null;
+      }
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: track.localUri || track.uri },
+        { shouldPlay: isPlayingRef.current, progressUpdateIntervalMillis: 1000 },
+        (status) => handleStatusUpdate(status)
       );
 
-      // ← Now update notification with real artwork using the enriched track directly
-      // Only if still on the same track
-      if (currentIdxRef.current === currentTrackIndex) {
-        MediaNotificationService.update(enrichedTrack, isPlayingRef.current, 0);
-      }
-    }
+      soundRef.current = sound;
+      const status = await sound.getStatusAsync();
+      setDurationMillis(status.durationMillis || 0);
+      setPositionMillis(0);
+      setSliderValue(0);
+      setIsSoundLoaded(true);
+      isSoundLoadedRef.current = true;
+      setIsLoading(false);
 
-  } catch (e) {
-    console.error("loadAudio error:", e);
-    setIsLoading(false);
-    setIsSoundLoaded(false);
-    isSoundLoadedRef.current = false;
-  }
-};
+      // Update notification with current track
+      MediaNotificationService.update(track, isPlayingRef.current, 0);
+
+      // Enrich metadata if not already loaded
+      if (!track.metadataLoaded && !metadataCache[track.id]) {
+        enrichTrackMetadata(track, currentTrackIndex);
+      }
+
+    } catch (e) {
+      console.error("loadAudio error:", e);
+      setIsLoading(false);
+      setIsSoundLoaded(false);
+      isSoundLoadedRef.current = false;
+    }
+  };
 
   // ─── seekHandler ─────────────────────────────────────────────────────────
   const seekHandler = async (value) => {
@@ -339,7 +369,6 @@ export function AudioProvider({ children }) {
     if (soundRef.current && isSoundLoadedRef.current) {
       try { 
         await soundRef.current.setPositionAsync(value);
-        // After seeking, update notification with new position
         const track = audioFilesRef.current[currentIdxRef.current];
         const status = await soundRef.current.getStatusAsync();
         MediaNotificationService.update(track, status.isPlaying, status.positionMillis);
@@ -347,7 +376,7 @@ export function AudioProvider({ children }) {
     }
   };
 
-  // ─── BT Ref callbacks - SINGLE VERSION (removed duplicate) ───────────────
+  // ─── BT Ref callbacks ───────────────────────────────────────────────
   useEffect(() => {
     btPlayRef.current  = async () => {
       if (soundRef.current) {
@@ -380,7 +409,6 @@ export function AudioProvider({ children }) {
       }
     };
 
-    // Update the service callbacks
     MediaNotificationService.updateCallbacks({
       onPlay:     () => btPlayRef.current?.(),
       onPause:    () => btPauseRef.current?.(),
@@ -388,31 +416,29 @@ export function AudioProvider({ children }) {
       onPrevious: () => btPrevRef.current?.(),
       onStop:     () => btStopRef.current?.(),
     });
-  }, [playNextTrack, playPreviousTrack]); // Added dependencies
+  }, [playNextTrack, playPreviousTrack]);
 
-  // handleStatusUpdate is a stable function
- // In handleStatusUpdate, only update notification for state changes, not position spam
-const handleStatusUpdate = useCallback((status) => {
-  if (!status.isLoaded) return;
+  // handleStatusUpdate
+  const handleStatusUpdate = useCallback((status) => {
+    if (!status.isLoaded) return;
 
-  setPositionMillis(status.positionMillis);
-  setSliderValue(status.positionMillis);
+    setPositionMillis(status.positionMillis);
+    setSliderValue(status.positionMillis);
 
-  const wasPlaying = isPlayingRef.current;
-  setIsPlaying(status.isPlaying);
+    const wasPlaying = isPlayingRef.current;
+    setIsPlaying(status.isPlaying);
 
-  // Only update notification on play/pause state changes, not every tick
-  if (status.isPlaying !== wasPlaying) {
-    const track = audioFilesRef.current[currentIdxRef.current];
-    if (track) {
-      MediaNotificationService.update(track, status.isPlaying, status.positionMillis);
+    if (status.isPlaying !== wasPlaying) {
+      const track = audioFilesRef.current[currentIdxRef.current];
+      if (track) {
+        MediaNotificationService.update(track, status.isPlaying, status.positionMillis);
+      }
     }
-  }
 
-  if (status.didJustFinish) {
-    handleTrackEndRef.current?.();
-  }
-}, []);
+    if (status.didJustFinish) {
+      handleTrackEndRef.current?.();
+    }
+  }, []);
 
   // ─── handleTrackEnd ───────────────────────────────────────────────────────
   const handleTrackEnd = useCallback(() => {
@@ -423,7 +449,6 @@ const handleStatusUpdate = useCallback((status) => {
 
     console.log(`[TrackEnd] mode=${mode} idx=${idx}/${files.length}`);
 
-    // ── REPEAT ONE ──────────────────────────────────────────────────────────
     if (mode === "one") {
       if (snd) {
         snd.setPositionAsync(0)
@@ -439,7 +464,6 @@ const handleStatusUpdate = useCallback((status) => {
       return;
     }
 
-    // ── REPEAT ALL ──────────────────────────────────────────────────────────
     if (mode === "all") {
       const next = shuffleModeRef.current
         ? Math.floor(Math.random() * files.length)
@@ -450,7 +474,6 @@ const handleStatusUpdate = useCallback((status) => {
       return;
     }
 
-    // ── REPEAT OFF ──────────────────────────────────────────────────────────
     if (idx < files.length - 1) {
       const next = shuffleModeRef.current
         ? Math.floor(Math.random() * files.length)
@@ -465,7 +488,6 @@ const handleStatusUpdate = useCallback((status) => {
     }
   }, []);
 
-  // Keep handleTrackEndRef pointing to the latest version
   useEffect(() => {
     handleTrackEndRef.current = handleTrackEnd;
   }, [handleTrackEnd]);
@@ -563,12 +585,43 @@ const handleStatusUpdate = useCallback((status) => {
     setFavorites((p) => p.filter((id) => id !== trackId));
   };
 
+  // Improved getAlbumArt function with better fallback handling
   const getAlbumArt = useCallback((track) => {
     if (!track) return defaultImage;
-    if (track.embeddedArtwork) return { uri: track.embeddedArtwork };
-    if (track.folderArtwork)   return { uri: track.folderArtwork };
-    if (track.onlineArtwork)   return { uri: track.onlineArtwork };
+    
+    // Try each artwork source in order of preference
+    if (track.embeddedArtwork) {
+      // Check if it's a valid base64 string
+      if (typeof track.embeddedArtwork === 'string' && track.embeddedArtwork.startsWith('data:image')) {
+        return { uri: track.embeddedArtwork };
+      }
+    }
+    
+    if (track.folderArtwork) {
+      // Check if it's a valid file URI
+      if (typeof track.folderArtwork === 'string') {
+        return { uri: track.folderArtwork };
+      }
+    }
+    
+    if (track.onlineArtwork) {
+      // Check if it's a valid URL
+      if (typeof track.onlineArtwork === 'string' && track.onlineArtwork.startsWith('http')) {
+        return { uri: track.onlineArtwork };
+      }
+    }
+    
+    // Fallback to default image
     return defaultImage;
+  }, [defaultImage]);
+
+  // Get artist name with proper fallback
+  const getArtistName = useCallback((track) => {
+    if (!track) return "Unknown Artist";
+    if (track.artist && track.artist !== "Unknown Artist" && track.artist.trim() !== "") {
+      return track.artist;
+    }
+    return "Unknown Artist";
   }, []);
 
   const favoriteFiles = audioFiles.filter((f) => favorites.includes(f.id));
@@ -587,7 +640,7 @@ const handleStatusUpdate = useCallback((status) => {
       playPauseHandler, playNextTrack, playPreviousTrack,
       toggleShuffle, toggleRepeat, seekHandler,
       toggleFavorite, isFavorite, deleteTrack,
-      getAlbumArt, playTrack,
+      getAlbumArt, playTrack, getArtistName, // Added getArtistName to context
     }}>
       {children}
     </AudioContext.Provider>

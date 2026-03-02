@@ -239,11 +239,11 @@ function PlayerContent() {
             {/* ── Track Info ── */}
             <View style={styles.trackInfo}>
               <Text style={styles.trackTitle} numberOfLines={1}>
-                {getCurrentTrackName()}
+                {getCurrentTrackName()} 
               </Text>
               {getCurrentArtist() ? (
                 <Text style={styles.trackArtist} numberOfLines={1}>
-                  {getCurrentArtist()}
+                  {getCurrentArtist()} 
                 </Text>
               ) : null}
             </View>

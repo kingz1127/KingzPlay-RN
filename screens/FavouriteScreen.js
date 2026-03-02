@@ -1,417 +1,8 @@
-
-// import React, { useState } from "react";
-// import {
-//   View, Text, FlatList, TouchableOpacity, Image,
-//   StyleSheet, Share, ActivityIndicator,
-// } from "react-native";
-// import { useAudio } from "../context/AudioContext";
-// import { Ionicons, MaterialIcons, Entypo, AntDesign, MaterialCommunityIcons } from "@expo/vector-icons";
-// import CustomHeader from "../components/ui/CustomHeader";
-
-// export default function FavouriteScreen() {
-//   const {
-//     audioFiles, favoriteFiles, currentTrackIndex, isPlaying,
-//     durationMillis, positionMillis, isLoading,
-//     defaultImage, playPauseHandler, playNextTrack, playPreviousTrack,
-//     toggleRepeat, toggleShuffle, repeatMode, shuffleMode,
-//     toggleFavorite, isFavorite, getAlbumArt,
-//     setCurrentTrackIndex, setIsPlaying,
-//   } = useAudio();
-
-//   const [activeTab, setActiveTab] = useState("list"); // 'list' | 'player'
-
-//   const playFromFavorites = (trackId) => {
-//     const indexInAll = audioFiles.findIndex((f) => f.id === trackId);
-//     if (indexInAll !== -1) {
-//       setCurrentTrackIndex(indexInAll);
-//       setIsPlaying(true);
-//       setActiveTab("player");
-//     }
-//   };
-
-//   const shareTrack = async (track) => {
-//     try {
-//       await Share.share({ message: `Check out this song: ${track.filename}` });
-//     } catch (error) {
-//       console.error("Error sharing:", error);
-//     }
-//   };
-
-//   const currentTrack = audioFiles[currentTrackIndex];
-//   const currentIsInFavorites = currentTrack && isFavorite(currentTrack.id);
-//   const progress = durationMillis > 0 ? (positionMillis / durationMillis) * 100 : 0;
-
-//   const getRepeatIcon = () => {
-//     switch (repeatMode) {
-//       case "one":
-//         return <MaterialCommunityIcons name="repeat-once" size={22} color="#7db659" />;
-//       case "all":
-//         return <Ionicons name="repeat" size={22} color="#09f03b" />;
-//       default:
-//         return <Ionicons name="repeat-outline" size={22} color="rgba(255,255,255,0.6)" />;
-//     }
-//   };
-
-//   if (favoriteFiles.length === 0) {
-//     return (
-//       <View style={styles.emptyContainer}>
-//         <MaterialIcons name="favorite-outline" size={80} color="#e74c3c" />
-//         <Text style={styles.emptyTitle}>No Favourites Yet</Text>
-//         <Text style={styles.emptySubtitle}>
-//           Tap the ♥ icon on any song to add it here
-//         </Text>
-//       </View>
-//     );
-//   }
-
-//   return (
-//     <View style={styles.container}>
-//        <ImageBackground
-//               source={albumArtSource}
-//               style={styles.backgroundImage}
-//               blurRadius={5}
-//             >
-      
-//       {/* Header */}
-//       <View style={styles.header}>
-//         <View style={styles.headerLeft}>
-//           <View>
-//       <CustomHeader  />
-      
-//     </View>
-//           <MaterialIcons name="favorite" size={24} color="#e74c3c" />
-//           <Text style={styles.headerTitle}>Favourites</Text>
-//         </View>
-//         <Text style={styles.headerCount}>{favoriteFiles.length} songs</Text>
-//       </View>
-
-//       {/* Tab Switch */}
-//       <View style={styles.tabRow}>
-//         <TouchableOpacity
-//           style={[styles.tab, activeTab === "list" && styles.tabActive]}
-//           onPress={() => setActiveTab("list")}
-//         >
-//           <Text style={[styles.tabText, activeTab === "list" && styles.tabTextActive]}>
-//             Playlist
-//           </Text>
-//         </TouchableOpacity>
-//         <TouchableOpacity
-//           style={[styles.tab, activeTab === "player" && styles.tabActive]}
-//           onPress={() => setActiveTab("player")}
-//         >
-//           <Text style={[styles.tabText, activeTab === "player" && styles.tabTextActive]}>
-//             Now Playing
-//           </Text>
-//         </TouchableOpacity>
-//       </View>
-
-//       {activeTab === "list" ? (
-//         <>
-//           {/* Stats bar */}
-//           <View style={styles.statsBar}>
-//             <Text style={styles.statsText}>
-//               {favoriteFiles.length} songs • {formatTotalDuration(favoriteFiles)}
-//             </Text>
-//             {/* Play all favorites */}
-//             <TouchableOpacity
-//               style={styles.playAllBtn}
-//               onPress={() => {
-//                 if (favoriteFiles.length > 0) {
-//                   playFromFavorites(favoriteFiles[0].id);
-//                 }
-//               }}
-//             >
-//               <Ionicons name="play-circle" size={18} color="#9b59b6" />
-//               <Text style={styles.playAllText}>Play All</Text>
-//             </TouchableOpacity>
-//           </View>
-
-//           <FlatList
-//             data={favoriteFiles}
-//             keyExtractor={(item) => item.id}
-//             contentContainerStyle={{ paddingBottom: 20 }}
-//             renderItem={({ item }) => {
-//               const actualIndex = audioFiles.findIndex((f) => f.id === item.id);
-//               const isCurrentTrack = actualIndex === currentTrackIndex;
-//               const itemProgress =
-//                 isCurrentTrack && durationMillis > 0
-//                   ? (positionMillis / durationMillis) * 100
-//                   : 0;
-//               const art = getAlbumArt(item);
-
-//               return (
-//                 <TouchableOpacity
-//                   style={[styles.trackItem, isCurrentTrack && styles.trackItemActive]}
-//                   onPress={() => playFromFavorites(item.id)}
-//                 >
-//                   {/* Thumbnail - Album art only, no color fallback */}
-//                   <Image
-//                     source={art || defaultImage}
-//                     style={styles.thumbnail}
-//                     defaultSource={defaultImage}
-//                   />
-
-//                   {/* Info */}
-//                   <View style={styles.trackInfo}>
-//                     <Text
-//                       style={[styles.trackName, isCurrentTrack && styles.trackNameActive]}
-//                       numberOfLines={1}
-//                     >
-//                       {item.filename.replace(/\.[^/.]+$/, "")}
-//                     </Text>
-//                     <Text style={styles.trackArtist} numberOfLines={1}>
-//                       {item.artist || "Unknown Artist"}
-//                     </Text>
-//                     {isCurrentTrack && (
-//                       <View style={styles.progressBar}>
-//                         <View style={[styles.progressFill, { width: `${itemProgress}%` }]} />
-//                       </View>
-//                     )}
-//                   </View>
-
-//                   {/* Actions */}
-//                   <View style={styles.actions}>
-//                     {isCurrentTrack && (
-//                       <TouchableOpacity onPress={playPauseHandler}>
-//                         <Ionicons
-//                           name={isPlaying ? "pause-circle" : "play-circle"}
-//                           size={28} color="#9b59b6"
-//                         />
-//                       </TouchableOpacity>
-//                     )}
-//                     <TouchableOpacity onPress={() => toggleFavorite(item.id)}>
-//                       <MaterialIcons name="favorite" size={22} color="#e74c3c" />
-//                     </TouchableOpacity>
-//                     <TouchableOpacity onPress={() => shareTrack(item)}>
-//                       <Entypo name="share" size={20} color="#999" />
-//                     </TouchableOpacity>
-//                   </View>
-//                 </TouchableOpacity>
-//               );
-//             }}
-//           />
-//         </>
-//       ) : (
-//         /* Mini Player View */
-//         <View style={styles.playerContainer}>
-//           {!currentIsInFavorites && currentTrack ? (
-//             <View style={styles.notFavContainer}>
-//               <Ionicons name="musical-notes" size={50} color="#555" />
-//               <Text style={styles.notFavText}>
-//                 Currently playing song is not in your favourites
-//               </Text>
-//               <Text style={styles.notFavSub}>
-//                 Select a song from the Playlist tab to play a favourite
-//               </Text>
-//             </View>
-//           ) : currentTrack ? (
-//             <>
-//               {/* Album Art - No color fallback */}
-//               <View style={styles.artContainer}>
-//                 <Image
-//                   source={getAlbumArt(currentTrack) || defaultImage}
-//                   style={styles.albumArt}
-//                   defaultSource={defaultImage}
-//                 />
-//               </View>
-
-//               {/* Track name + fav button */}
-//               <View style={styles.playerTrackRow}>
-//                 <View style={{ flex: 1 }}>
-//                   <Text style={styles.playerTrackName} numberOfLines={1}>
-//                     {currentTrack.filename.replace(/\.[^/.]+$/, "")}
-//                   </Text>
-//                   <Text style={styles.playerArtist} numberOfLines={1}>
-//                     {currentTrack.artist || "Unknown Artist"}
-//                   </Text>
-//                 </View>
-//                 <TouchableOpacity onPress={() => toggleFavorite()}>
-//                   <MaterialIcons name="favorite" size={26} color="#e74c3c" />
-//                 </TouchableOpacity>
-//               </View>
-
-//               {/* Progress bar */}
-//               <View style={styles.fullProgressContainer}>
-//                 <View style={[styles.fullProgressFill, { width: `${progress}%` }]} />
-//               </View>
-//               <View style={styles.timeRow}>
-//                 <Text style={styles.timeText}>{formatTime(positionMillis)}</Text>
-//                 <Text style={styles.timeText}>{formatTime(durationMillis)}</Text>
-//               </View>
-
-//               {/* Controls */}
-//               <View style={styles.controls}>
-//                 <TouchableOpacity onPress={toggleShuffle}>
-//                   <Ionicons
-//                     name="shuffle-outline" size={22}
-//                     color={shuffleMode ? "#f808d4" : "rgba(255,255,255,0.6)"}
-//                   />
-//                 </TouchableOpacity>
-
-//                 <TouchableOpacity onPress={() => playPreviousTrack(favoriteFiles)}>
-//                   <AntDesign name="step-backward" size={26} color="white" />
-//                 </TouchableOpacity>
-
-//                 <TouchableOpacity onPress={playPauseHandler} disabled={isLoading}>
-//                   {isLoading ? (
-//                     <ActivityIndicator size="large" color="white" />
-//                   ) : (
-//                     <Ionicons
-//                       name={isPlaying ? "pause-circle" : "play-circle"}
-//                       size={70} color="white"
-//                     />
-//                   )}
-//                 </TouchableOpacity>
-
-//                 <TouchableOpacity onPress={() => playNextTrack(favoriteFiles)}>
-//                   <AntDesign name="step-forward" size={26} color="white" />
-//                 </TouchableOpacity>
-
-//                 <TouchableOpacity onPress={toggleRepeat}>
-//                   {getRepeatIcon()}
-//                 </TouchableOpacity>
-//               </View>
-//             </>
-//           ) : (
-//             <View style={styles.notFavContainer}>
-//               <Text style={styles.notFavText}>No track selected</Text>
-//             </View>
-//           )}
-//         </View>
-//       )}
-//       </ImageBackground>
-//     </View>
-//   );
-// }
-
-// function formatTime(millis) {
-//   if (!millis) return "00:00";
-//   const totalSeconds = Math.floor(millis / 1000);
-//   const minutes = Math.floor(totalSeconds / 60);
-//   const seconds = totalSeconds % 60;
-//   return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-// }
-
-// function formatTotalDuration(files) {
-//   const totalSeconds = files.reduce((acc, file) => acc + (file.duration || 0), 0);
-//   const hours = Math.floor(totalSeconds / 3600);
-//   const minutes = Math.floor((totalSeconds % 3600) / 60);
-//   if (hours > 0) return `${hours} hr ${minutes} min`;
-//   return `${minutes} min`;
-// }
-
-// const styles = StyleSheet.create({
-//   container: { flex: 1, backgroundColor: "#121212" },
-
-//   emptyContainer: {
-//     flex: 1, backgroundColor: "#121212",
-//     justifyContent: "center", alignItems: "center", padding: 30,
-//   },
-//   emptyTitle: {
-//     color: "white", fontSize: 22, fontWeight: "bold",
-//     marginTop: 20, marginBottom: 10,
-//   },
-//   emptySubtitle: { color: "#888", fontSize: 15, textAlign: "center" },
-
-//   header: {
-//     flexDirection: "row", justifyContent: "space-between",
-//     alignItems: "center", padding: 20, paddingTop: 50,
-//     borderBottomWidth: 1, borderBottomColor: "#222",
-//   },
-//   headerLeft: { flexDirection: "row", alignItems: "center",  },
-//   headerTitle: { color: "white", fontSize: 22, fontWeight: "bold" },
-//   headerCount: { color: "#888", fontSize: 14 },
-
-//   tabRow: {
-//     flexDirection: "row", margin: 15, backgroundColor: "#1e1e1e",
-//     borderRadius: 12, overflow: "hidden",
-//   },
-//   tab: { flex: 1, paddingVertical: 10, alignItems: "center" },
-//   tabActive: { backgroundColor: "#9b59b6" },
-//   tabText: { color: "#888", fontWeight: "600" },
-//   tabTextActive: { color: "white" },
-
-//   statsBar: {
-//     flexDirection: "row", justifyContent: "space-between",
-//     alignItems: "center", paddingHorizontal: 15, paddingBottom: 10,
-//   },
-//   statsText: { color: "#888", fontSize: 13 },
-//   playAllBtn: { flexDirection: "row", alignItems: "center", gap: 5 },
-//   playAllText: { color: "#9b59b6", fontWeight: "600" },
-
-//   trackItem: {
-//     flexDirection: "row", alignItems: "center",
-//     paddingHorizontal: 15, paddingVertical: 10,
-//     borderBottomWidth: 1, borderBottomColor: "#1a1a1a",
-//   },
-//   trackItemActive: { backgroundColor: "#1e1e2e" },
-
-//   thumbnail: { width: 50, height: 50, borderRadius: 8, marginRight: 12 },
-
-//   trackInfo: { flex: 1, marginRight: 8 },
-//   trackName: { color: "white", fontSize: 14, fontWeight: "500" },
-//   trackNameActive: { color: "#9b59b6" },
-//   trackArtist: { color: "#888", fontSize: 12, marginTop: 2 },
-
-//   progressBar: {
-//     height: 3, backgroundColor: "#333",
-//     borderRadius: 2, marginTop: 5, overflow: "hidden",
-//   },
-//   progressFill: { height: "100%", backgroundColor: "#9b59b6", borderRadius: 2 },
-
-//   actions: { flexDirection: "row", alignItems: "center", gap: 10 },
-
-//   // Player tab styles
-//   playerContainer: {
-//     flex: 1, paddingHorizontal: 25, paddingTop: 20,
-//     alignItems: "center",
-//   },
-//   notFavContainer: {
-//     flex: 1, justifyContent: "center", alignItems: "center", gap: 12,
-//   },
-//   notFavText: {
-//     color: "#888", fontSize: 16, textAlign: "center", fontWeight: "500",
-//   },
-//   notFavSub: { color: "#555", fontSize: 13, textAlign: "center" },
-
-//   artContainer: { marginVertical: 20 },
-//   albumArt: { width: 220, height: 220, borderRadius: 110 },
-
-//   playerTrackRow: {
-//     flexDirection: "row", alignItems: "center",
-//     width: "100%", marginBottom: 15,
-//   },
-//   playerTrackName: {
-//     color: "white", fontSize: 18, fontWeight: "bold",
-//   },
-//   playerArtist: { color: "#888", fontSize: 14, marginTop: 3 },
-
-//   fullProgressContainer: {
-//     width: "100%", height: 4, backgroundColor: "#333",
-//     borderRadius: 2, overflow: "hidden",
-//   },
-//   fullProgressFill: {
-//     height: "100%", backgroundColor: "#9b59b6", borderRadius: 2,
-//   },
-//   timeRow: {
-//     flexDirection: "row", justifyContent: "space-between",
-//     width: "100%", marginTop: 6, marginBottom: 20,
-//   },
-//   timeText: { color: "#888", fontSize: 12 },
-
-//   controls: {
-//     flexDirection: "row", alignItems: "center",
-//     justifyContent: "space-between", width: "100%",
-//   },
-// });
-
-
-
-
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, FlatList, TouchableOpacity, Image,
   ImageBackground, StyleSheet, Share, ActivityIndicator,
+  Animated, Easing,
 } from "react-native";
 import { useAudio } from "../context/AudioContext";
 import {
@@ -419,36 +10,171 @@ import {
   AntDesign, MaterialCommunityIcons,
 } from "@expo/vector-icons";
 import CustomHeader from "../components/ui/CustomHeader";
+import Slider from "@react-native-community/slider";
 
 export default function FavouriteScreen() {
   const {
     audioFiles, favoriteFiles, currentTrackIndex, isPlaying,
     durationMillis, positionMillis, isLoading, defaultImage,
-    playPauseHandler, playNextTrack, playPreviousTrack,
-    toggleRepeat, toggleShuffle, repeatMode, shuffleMode,
-    toggleFavorite, isFavorite, getAlbumArt,
-    setCurrentTrackIndex, setIsPlaying,
+    playPauseHandler, toggleRepeat, toggleShuffle, 
+    repeatMode, shuffleMode, toggleFavorite, isFavorite, 
+    getAlbumArt, setCurrentTrackIndex, setIsPlaying, seekHandler,
+    playNextTrack, playPreviousTrack,
   } = useAudio();
 
   const [activeTab, setActiveTab] = useState("list"); // 'list' | 'player'
+  const [favoritesPlaylist, setFavoritesPlaylist] = useState([]);
+  const rotationAnim = useRef(new Animated.Value(0)).current;
 
-  const currentTrack    = audioFiles[currentTrackIndex] ?? null;
-  const albumArtSource  = getAlbumArt(currentTrack ?? {});
-  const currentIsInFavs = currentTrack ? isFavorite(currentTrack.id) : false;
-  const progress        = durationMillis > 0 ? (positionMillis / durationMillis) * 100 : 0;
+  // Create a filtered playlist of only favorites
+  useEffect(() => {
+    const favs = audioFiles.filter(file => isFavorite(file.id));
+    setFavoritesPlaylist(favs);
+  }, [audioFiles, favoriteFiles]);
 
-  const playFromFavorites = (trackId) => {
+  // Animation for album art rotation
+  useEffect(() => {
+    if (isPlaying) {
+      Animated.loop(
+        Animated.timing(rotationAnim, {
+          toValue: 1,
+          duration: 8000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      ).start();
+    } else {
+      rotationAnim.stopAnimation();
+      rotationAnim.setValue(0);
+    }
+  }, [isPlaying]);
+
+  const rotateInterpolate = rotationAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  const currentTrack = audioFiles[currentTrackIndex] ?? null;
+  const currentIsInFavs = currentTrack ? favoritesPlaylist.some(f => f.id === currentTrack.id) : false;
+  const progress = durationMillis > 0 ? (positionMillis / durationMillis) * 100 : 0;
+
+  // Helper function to get artist name with fallback
+  const getArtistName = useCallback((track) => {
+    if (!track) return "Unknown Artist";
+    return track.artist && track.artist !== "Unknown Artist" ? track.artist : "Unknown Artist";
+  }, []);
+
+  // Check if current track is last in favorites
+  const isLastInFavorites = useCallback(() => {
+    if (!currentTrack || favoritesPlaylist.length === 0) return false;
+    const currentFavIndex = favoritesPlaylist.findIndex(f => f.id === currentTrack.id);
+    return currentFavIndex === favoritesPlaylist.length - 1;
+  }, [currentTrack, favoritesPlaylist]);
+
+  // Handle next track within favorites only
+  const handleNextInFavorites = useCallback(() => {
+    if (!currentTrack || favoritesPlaylist.length === 0) return;
+
+    const currentFavIndex = favoritesPlaylist.findIndex(f => f.id === currentTrack.id);
+    
+    if (currentFavIndex === -1) {
+      // Current track not in favorites, play first favorite
+      if (favoritesPlaylist.length > 0) {
+        const firstFav = favoritesPlaylist[0];
+        const indexInAll = audioFiles.findIndex(f => f.id === firstFav.id);
+        if (indexInAll !== -1) {
+          setCurrentTrackIndex(indexInAll);
+          setIsPlaying(true);
+        }
+      }
+    } else {
+      if (repeatMode === "one") {
+        // Repeat one - just restart current track
+        if (seekHandler) {
+          seekHandler(0);
+          setIsPlaying(true);
+        }
+      } else if (currentFavIndex < favoritesPlaylist.length - 1) {
+        // Play next in favorites
+        const nextFav = favoritesPlaylist[currentFavIndex + 1];
+        const indexInAll = audioFiles.findIndex(f => f.id === nextFav.id);
+        if (indexInAll !== -1) {
+          setCurrentTrackIndex(indexInAll);
+          setIsPlaying(true);
+        }
+      } else {
+        // Last track in favorites
+        if (repeatMode === "all") {
+          // Repeat all - go back to first
+          if (favoritesPlaylist.length > 0) {
+            const firstFav = favoritesPlaylist[0];
+            const indexInAll = audioFiles.findIndex(f => f.id === firstFav.id);
+            if (indexInAll !== -1) {
+              setCurrentTrackIndex(indexInAll);
+              setIsPlaying(true);
+            }
+          }
+        } else {
+          // Repeat off - stop playback
+          setIsPlaying(false);
+          if (seekHandler) {
+            seekHandler(0);
+          }
+        }
+      }
+    }
+  }, [currentTrack, favoritesPlaylist, audioFiles, repeatMode, setCurrentTrackIndex, setIsPlaying, seekHandler]);
+
+  // Handle previous track within favorites only
+  const handlePreviousInFavorites = useCallback(() => {
+    if (!currentTrack || favoritesPlaylist.length === 0) return;
+
+    const currentFavIndex = favoritesPlaylist.findIndex(f => f.id === currentTrack.id);
+    
+    if (currentFavIndex > 0) {
+      const prevFav = favoritesPlaylist[currentFavIndex - 1];
+      const indexInAll = audioFiles.findIndex(f => f.id === prevFav.id);
+      if (indexInAll !== -1) {
+        setCurrentTrackIndex(indexInAll);
+        setIsPlaying(true);
+      }
+    } else if (currentFavIndex === 0) {
+      // At first track, if repeat all is on, go to last
+      if (repeatMode === "all" && favoritesPlaylist.length > 0) {
+        const lastFav = favoritesPlaylist[favoritesPlaylist.length - 1];
+        const indexInAll = audioFiles.findIndex(f => f.id === lastFav.id);
+        if (indexInAll !== -1) {
+          setCurrentTrackIndex(indexInAll);
+          setIsPlaying(true);
+        }
+      }
+    }
+  }, [currentTrack, favoritesPlaylist, audioFiles, repeatMode, setCurrentTrackIndex, setIsPlaying]);
+
+  // Play from favorites playlist
+  const playFromFavorites = useCallback((trackId) => {
     const indexInAll = audioFiles.findIndex((f) => f.id === trackId);
     if (indexInAll !== -1) {
       setCurrentTrackIndex(indexInAll);
       setIsPlaying(true);
       setActiveTab("player");
     }
-  };
+  }, [audioFiles, setCurrentTrackIndex, setIsPlaying]);
+
+  // Handle seek
+  const handleSeek = useCallback((value) => {
+    if (seekHandler) {
+      const seekPosition = (value / 100) * durationMillis;
+      seekHandler(seekPosition);
+    }
+  }, [durationMillis, seekHandler]);
 
   const shareTrack = async (track) => {
     try {
-      await Share.share({ message: `Check out this song: ${track.filename}` });
+      await Share.share({ 
+        message: `Check out this song: ${track.filename}`,
+        title: track.filename
+      });
     } catch (error) {
       console.error("Error sharing:", error);
     }
@@ -463,6 +189,22 @@ export default function FavouriteScreen() {
       default:
         return <Ionicons name="repeat-outline" size={22} color="rgba(255,255,255,0.6)" />;
     }
+  };
+
+  const formatTotalDuration = (files) => {
+    const totalSeconds = files.reduce((acc, file) => acc + (file.duration || 0), 0);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    if (hours > 0) return `${hours} hr ${minutes} min`;
+    return `${minutes} min`;
+  };
+
+  const formatTime = (millis) => {
+    if (!millis || isNaN(millis)) return "00:00";
+    const totalSeconds = Math.floor(millis / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
   };
 
   if (favoriteFiles.length === 0) {
@@ -480,7 +222,7 @@ export default function FavouriteScreen() {
   return (
     <View style={styles.container}>
       <ImageBackground
-        source={albumArtSource}
+        source={currentTrack && currentIsInFavs ? getAlbumArt(currentTrack) : defaultImage}
         style={styles.backgroundImage}
         blurRadius={5}
       >
@@ -539,12 +281,13 @@ export default function FavouriteScreen() {
                 contentContainerStyle={{ paddingBottom: 20 }}
                 renderItem={({ item }) => {
                   const actualIndex = audioFiles.findIndex((f) => f.id === item.id);
-                  const isCurrentTrack = actualIndex === currentTrackIndex;
+                  const isCurrentTrack = actualIndex === currentTrackIndex && currentIsInFavs;
                   const itemProgress =
                     isCurrentTrack && durationMillis > 0
                       ? (positionMillis / durationMillis) * 100
                       : 0;
                   const art = getAlbumArt(item);
+                  const artistName = getArtistName(item);
 
                   return (
                     <TouchableOpacity
@@ -563,11 +306,9 @@ export default function FavouriteScreen() {
                         >
                           {item.filename.replace(/\.[^/.]+$/, "")}
                         </Text>
-                        {item.artist ? (
-                          <Text style={styles.trackArtist} numberOfLines={1}>
-                            {item.artist}
-                          </Text>
-                        ) : null}
+                        <Text style={styles.trackArtist} numberOfLines={1}>
+                          {artistName}
+                        </Text>
                         {isCurrentTrack && (
                           <View style={styles.progressBar}>
                             <View style={[styles.progressFill, { width: `${itemProgress}%` }]} />
@@ -612,9 +353,12 @@ export default function FavouriteScreen() {
               ) : currentTrack ? (
                 <>
                   <View style={styles.artContainer}>
-                    <Image
-                      source={albumArtSource}
-                      style={styles.albumArt}
+                    <Animated.Image
+                      source={getAlbumArt(currentTrack)}
+                      style={[
+                        styles.albumArt,
+                        { transform: [{ rotate: rotateInterpolate }] }
+                      ]}
                       defaultSource={defaultImage}
                     />
                   </View>
@@ -624,23 +368,35 @@ export default function FavouriteScreen() {
                       <Text style={styles.playerTrackName} numberOfLines={1}>
                         {currentTrack.filename.replace(/\.[^/.]+$/, "")}
                       </Text>
-                      {currentTrack.artist ? (
-                        <Text style={styles.playerArtist} numberOfLines={1}>
-                          {currentTrack.artist}
-                        </Text>
-                      ) : null}
+                      <Text style={styles.playerArtist} numberOfLines={1}>
+                        {getArtistName(currentTrack)}
+                      </Text>
                     </View>
-                    <TouchableOpacity onPress={() => toggleFavorite()}>
-                      <MaterialIcons name="favorite" size={26} color="#e74c3c" />
+                    <TouchableOpacity onPress={() => toggleFavorite(currentTrack.id)}>
+                      <MaterialIcons 
+                        name={isFavorite(currentTrack.id) ? "favorite" : "favorite-border"} 
+                        size={26} 
+                        color={isFavorite(currentTrack.id) ? "#e74c3c" : "#888"} 
+                      />
                     </TouchableOpacity>
                   </View>
 
-                  <View style={styles.fullProgressContainer}>
-                    <View style={[styles.fullProgressFill, { width: `${progress}%` }]} />
-                  </View>
-                  <View style={styles.timeRow}>
-                    <Text style={styles.timeText}>{formatTime(positionMillis)}</Text>
-                    <Text style={styles.timeText}>{formatTime(durationMillis)}</Text>
+                  {/* Seekbar with slider */}
+                  <View style={styles.seekbarContainer}>
+                    <Slider
+                      style={styles.slider}
+                      minimumValue={0}
+                      maximumValue={100}
+                      value={progress}
+                      onSlidingComplete={handleSeek}
+                      minimumTrackTintColor="#9b59b6"
+                      maximumTrackTintColor="#444"
+                      thumbTintColor="#9b59b6"
+                    />
+                    <View style={styles.timeRow}>
+                      <Text style={styles.timeText}>{formatTime(positionMillis)}</Text>
+                      <Text style={styles.timeText}>{formatTime(durationMillis)}</Text>
+                    </View>
                   </View>
 
                   <View style={styles.controls}>
@@ -651,7 +407,7 @@ export default function FavouriteScreen() {
                         color={shuffleMode ? "#f808d4" : "rgba(255,255,255,0.6)"}
                       />
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => playPreviousTrack(favoriteFiles)}>
+                    <TouchableOpacity onPress={handlePreviousInFavorites}>
                       <AntDesign name="step-backward" size={26} color="white" />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={playPauseHandler} disabled={isLoading}>
@@ -665,17 +421,28 @@ export default function FavouriteScreen() {
                         />
                       )}
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => playNextTrack(favoriteFiles)}>
+                    <TouchableOpacity onPress={handleNextInFavorites}>
                       <AntDesign name="step-forward" size={26} color="white" />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={toggleRepeat}>
                       {getRepeatIcon()}
                     </TouchableOpacity>
                   </View>
+
+                  {/* Show repeat status message when on last track */}
+                  {isLastInFavorites() && repeatMode === "off" && (
+                    <Text style={styles.lastTrackMessage}>
+                      {/* Last track - playback will stop when finished */}
+                    </Text>
+                  )}
                 </>
               ) : (
                 <View style={styles.notFavContainer}>
+                  <MaterialIcons name="music-note" size={50} color="#555" />
                   <Text style={styles.notFavText}>No track selected</Text>
+                  <Text style={styles.notFavSub}>
+                    Select a song from the Playlist tab to start playing
+                  </Text>
                 </View>
               )}
             </View>
@@ -686,28 +453,10 @@ export default function FavouriteScreen() {
   );
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function formatTime(millis) {
-  if (!millis) return "00:00";
-  const totalSeconds = Math.floor(millis / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-}
-
-function formatTotalDuration(files) {
-  const totalSeconds = files.reduce((acc, file) => acc + (file.duration || 0), 0);
-  const hours   = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  if (hours > 0) return `${hours} hr ${minutes} min`;
-  return `${minutes} min`;
-}
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container:      { flex: 1, backgroundColor: "#121212" },
+  container: { flex: 1, backgroundColor: "#121212" },
   backgroundImage: { flex: 1 },
-  overlay:        { flex: 1, backgroundColor: "rgba(0,0,0,0.55)" },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)" },
 
   emptyContainer: {
     flex: 1, backgroundColor: "#121212",
@@ -724,8 +473,8 @@ const styles = StyleSheet.create({
     alignItems: "center", padding: 20, paddingTop: 50,
     borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.1)",
   },
-  headerLeft:  { flexDirection: "row", alignItems: "center" },
-  headerTitle: { color: "white", fontSize: 22, fontWeight: "bold" },
+  headerLeft: { flexDirection: "row", alignItems: "center" },
+  headerTitle: { color: "white", fontSize: 22, fontWeight: "bold", marginLeft: 8 },
   headerCount: { color: "#aaa", fontSize: 14 },
 
   tabRow: {
@@ -733,17 +482,17 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.1)",
     borderRadius: 12, overflow: "hidden",
   },
-  tab:          { flex: 1, paddingVertical: 10, alignItems: "center" },
-  tabActive:    { backgroundColor: "#9b59b6" },
-  tabText:      { color: "#aaa", fontWeight: "600" },
+  tab: { flex: 1, paddingVertical: 10, alignItems: "center" },
+  tabActive: { backgroundColor: "#9b59b6" },
+  tabText: { color: "#aaa", fontWeight: "600" },
   tabTextActive: { color: "white" },
 
   statsBar: {
     flexDirection: "row", justifyContent: "space-between",
     alignItems: "center", paddingHorizontal: 15, paddingBottom: 10,
   },
-  statsText:   { color: "#aaa", fontSize: 13 },
-  playAllBtn:  { flexDirection: "row", alignItems: "center", gap: 5 },
+  statsText: { color: "#aaa", fontSize: 13 },
+  playAllBtn: { flexDirection: "row", alignItems: "center", gap: 5 },
   playAllText: { color: "#9b59b6", fontWeight: "600" },
 
   trackItem: {
@@ -755,10 +504,10 @@ const styles = StyleSheet.create({
 
   thumbnail: { width: 50, height: 50, borderRadius: 8, marginRight: 12, backgroundColor: "#1a1a2e" },
 
-  trackInfo:      { flex: 1, marginRight: 8 },
-  trackName:      { color: "white", fontSize: 14, fontWeight: "500" },
+  trackInfo: { flex: 1, marginRight: 8 },
+  trackName: { color: "white", fontSize: 14, fontWeight: "500" },
   trackNameActive: { color: "#9b59b6" },
-  trackArtist:    { color: "#888", fontSize: 12, marginTop: 2 },
+  trackArtist: { color: "#888", fontSize: 12, marginTop: 2 },
 
   progressBar: {
     height: 3, backgroundColor: "#444",
@@ -766,7 +515,7 @@ const styles = StyleSheet.create({
   },
   progressFill: { height: "100%", backgroundColor: "#9b59b6", borderRadius: 2 },
 
-  actions: { flexDirection: "row", alignItems: "center", gap: 10 },
+  actions: { flexDirection: "row", alignItems: "center", gap: 15 },
 
   playerContainer: {
     flex: 1, paddingHorizontal: 25, paddingTop: 20, alignItems: "center",
@@ -775,32 +524,42 @@ const styles = StyleSheet.create({
     flex: 1, justifyContent: "center", alignItems: "center", gap: 12,
   },
   notFavText: { color: "#888", fontSize: 16, textAlign: "center", fontWeight: "500" },
-  notFavSub:  { color: "#555", fontSize: 13, textAlign: "center" },
+  notFavSub: { color: "#555", fontSize: 13, textAlign: "center" },
 
-  artContainer:    { marginVertical: 20 },
-  albumArt:        { width: 220, height: 220, borderRadius: 110, backgroundColor: "#1a1a2e" },
+  artContainer: { marginVertical: 20, alignItems: "center" },
+  albumArt: { width: 220, height: 220, borderRadius: 110, backgroundColor: "#1a1a2e" },
 
   playerTrackRow: {
     flexDirection: "row", alignItems: "center",
     width: "100%", marginBottom: 15,
   },
   playerTrackName: { color: "white", fontSize: 18, fontWeight: "bold" },
-  playerArtist:    { color: "#888", fontSize: 14, marginTop: 3 },
+  playerArtist: { color: "#888", fontSize: 14, marginTop: 3 },
 
-  fullProgressContainer: {
-    width: "100%", height: 4, backgroundColor: "#444",
-    borderRadius: 2, overflow: "hidden",
+  seekbarContainer: {
+    width: "100%",
+    marginBottom: 20,
   },
-  fullProgressFill: { height: "100%", backgroundColor: "#9b59b6", borderRadius: 2 },
-
+  slider: {
+    width: "100%",
+    height: 40,
+  },
   timeRow: {
     flexDirection: "row", justifyContent: "space-between",
-    width: "100%", marginTop: 6, marginBottom: 20,
+    width: "100%", marginTop: 6,
   },
   timeText: { color: "#888", fontSize: 12 },
 
   controls: {
     flexDirection: "row", alignItems: "center",
     justifyContent: "space-between", width: "100%",
+    marginBottom: 20,
+  },
+
+  lastTrackMessage: {
+    color: "#9b59b6",
+    fontSize: 12,
+    marginTop: 10,
+    textAlign: "center",
   },
 });

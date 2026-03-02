@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "KingPlay",
-    "slug": "KingPlay",
+    "name": "KingzPlay",
+    "slug": "KingzPlay",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "assets/images/KingzPlayerLogo.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "assets/images/KingzPlaylogo2.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -30,7 +30,7 @@
       ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png"
+        "foregroundImage": "./assets/images/KingzPlaylogo.png"
       }
     },
     "plugins": [

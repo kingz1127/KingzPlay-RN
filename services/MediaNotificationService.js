@@ -21,82 +21,82 @@ let _currentTrack = null;
 let _isPlaying = false;
 let _currentPosition = 0;
 
-// function setup({ onPlay, onPause, onNext, onPrevious, onStop }) {
-//   _callbacks = { onPlay, onPause, onNext, onPrevious, onStop };
+function setup({ onPlay, onPause, onNext, onPrevious, onStop }) {
+  _callbacks = { onPlay, onPause, onNext, onPrevious, onStop };
 
-//   // Setup notification channel for Android
-//   if (Platform.OS === 'android' && Notifications) {
-//     Notifications.setNotificationChannelAsync('media-playback', {
-//       name: 'Media Playback',
-//       importance: Notifications.AndroidImportance.LOW,
-//       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-//       sound: null,
-//       bypassDnd: true,
-//       enableVibrate: false,
-//     });
-//   }
+  // Setup notification channel for Android
+  if (Platform.OS === 'android' && Notifications) {
+    Notifications.setNotificationChannelAsync('media-playback', {
+      name: 'Media Playback',
+      importance: Notifications.AndroidImportance.LOW,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      sound: null,
+      bypassDnd: true,
+      enableVibrate: false,
+    });
+  }
 
-//   if (Notifications && !_notificationListener) {
-//     _notificationListener = Notifications.addNotificationResponseReceivedListener((response) => {
-//       const action = response.actionIdentifier;
-//       if (action === "PREV") _callbacks.onPrevious?.();
-//       else if (action === "PLAY") _callbacks.onPlay?.();
-//       else if (action === "PAUSE") _callbacks.onPause?.();
-//       else if (action === "NEXT") _callbacks.onNext?.();
-//     });
-//   }
+  if (Notifications && !_notificationListener) {
+    _notificationListener = Notifications.addNotificationResponseReceivedListener((response) => {
+      const action = response.actionIdentifier;
+      if (action === "PREV") _callbacks.onPrevious?.();
+      else if (action === "PLAY") _callbacks.onPlay?.();
+      else if (action === "PAUSE") _callbacks.onPause?.();
+      else if (action === "NEXT") _callbacks.onNext?.();
+    });
+  }
 
-//   if (!MusicControl) {
-//     _isSetup = true;
-//     return;
-//   }
+  if (!MusicControl) {
+    _isSetup = true;
+    return;
+  }
 
-//   if (!_isSetup) {
-//     try {
-//       // Enable background mode
-//       MusicControl.enableBackgroundMode(true);
+  if (!_isSetup) {
+    try {
+      // Enable background mode
+      MusicControl.enableBackgroundMode(true);
       
-//       // Setup controls
-//       MusicControl.enableControl("play", true);
-//       MusicControl.enableControl("pause", true);
-//       MusicControl.enableControl("nextTrack", true);
-//       MusicControl.enableControl("previousTrack", true);
-//       MusicControl.enableControl("stop", true);
-//       MusicControl.enableControl("closeNotification", true, { when: "paused" });
+      // Setup controls
+      MusicControl.enableControl("play", true);
+      MusicControl.enableControl("pause", true);
+      MusicControl.enableControl("nextTrack", true);
+      MusicControl.enableControl("previousTrack", true);
+      MusicControl.enableControl("stop", true);
+      MusicControl.enableControl("closeNotification", true, { when: "paused" });
 
-//       // Register event listeners
-//       MusicControl.on("play", () => {
-//         console.log("[MediaNotification] Play pressed");
-//         _callbacks.onPlay?.();
-//       });
+      // Register event listeners
+      MusicControl.on("play", () => {
+        console.log("[MediaNotification] Play pressed");
+        _callbacks.onPlay?.();
+      });
       
-//       MusicControl.on("pause", () => {
-//         console.log("[MediaNotification] Pause pressed");
-//         _callbacks.onPause?.();
-//       });
+      MusicControl.on("pause", () => {
+        console.log("[MediaNotification] Pause pressed");
+        _callbacks.onPause?.();
+      });
       
-//       MusicControl.on("nextTrack", () => {
-//         console.log("[MediaNotification] Next pressed");
-//         _callbacks.onNext?.();
-//       });
+      MusicControl.on("nextTrack", () => {
+        console.log("[MediaNotification] Next pressed");
+        _callbacks.onNext?.();
+      });
       
-//       MusicControl.on("previousTrack", () => {
-//         console.log("[MediaNotification] Previous pressed");
-//         _callbacks.onPrevious?.();
-//       });
+      MusicControl.on("previousTrack", () => {
+        console.log("[MediaNotification] Previous pressed");
+        _callbacks.onPrevious?.();
+      });
       
-//       MusicControl.on("stop", () => {
-//         console.log("[MediaNotification] Stop pressed");
-//         _callbacks.onStop?.();
-//       });
+      MusicControl.on("stop", () => {
+        console.log("[MediaNotification] Stop pressed");
+        _callbacks.onStop?.();
+      });
 
-//       console.log("[MediaNotification] ✅ MusicControl setup complete");
-//     } catch (e) {
-//       console.error("[MediaNotification] MusicControl setup error:", e);
-//     }
-//   }
-//   _isSetup = true;
-// }
+      console.log("[MediaNotification] ✅ MusicControl setup complete");
+    } catch (e) {
+      console.error("[MediaNotification] MusicControl setup error:", e);
+    }
+  }
+  _isSetup = true;
+}
 
 function updateCallbacks(callbacks) {
   _callbacks = { ..._callbacks, ...callbacks };
@@ -198,22 +198,22 @@ function destroy() {
   }
 }
 
-// async function createAndroidChannel() {
-//   if (Platform.OS !== "android" || !Notifications) return;
-//   try {
-//     await Notifications.setNotificationChannelAsync("media-player", {
-//       name: "Media Player",
-//       importance: Notifications.AndroidImportance.LOW,
-//       showBadge: false,
-//       sound: null,
-//       bypassDnd: true,
-//       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-//     });
-//     console.log("[MediaNotification] ✅ Android channel created");
-//   } catch (e) {
-//     console.error("[MediaNotification] Channel creation error:", e);
-//   }
-// }
+async function createAndroidChannel() {
+  if (Platform.OS !== "android" || !Notifications) return;
+  try {
+    await Notifications.setNotificationChannelAsync("media-player", {
+      name: "Media Player",
+      importance: Notifications.AndroidImportance.LOW,
+      showBadge: false,
+      sound: null,
+      bypassDnd: true,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    });
+    console.log("[MediaNotification] ✅ Android channel created");
+  } catch (e) {
+    console.error("[MediaNotification] Channel creation error:", e);
+  }
+}
 
 async function getArtworkUri(track) {
   // Same priority order as getAlbumArt() in AudioContext:
