@@ -12,18 +12,47 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourname.kingplay",
+      "infoPlist": { "UIBackgroundModes": ["audio"] }
     },
     "android": {
+      "package": "com.yourname.kingplay",
+      "compileSdkVersion": 36,
+      "targetSdkVersion": 34,
+      "permissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.ACCESS_MEDIA_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_AUDIO_PLAYBACK",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/android-icon-foreground.png"
       }
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    }
+    "plugins": [
+      "expo-sharing",
+      "expo-av",
+      "expo-system-ui",
+      "expo-media-library",
+      "expo-notifications",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "36.0.0",
+            "extraGradleProps": {
+              "org.gradle.jvmargs": "-Xmx2048m -XX:MaxMetaspaceSize=512m"
+            }
+          },
+           "foregroundServiceType": "audioPlayback"
+        }
+      ]
+    ]
   }
 }
