@@ -1,11 +1,14 @@
+
+
 import React, {
   createContext, useContext, useState, useRef, useEffect, useCallback,
 } from "react";
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from "expo-av";
 import * as MediaLibrary from "expo-media-library";
 import * as FileSystem from "expo-file-system";
+import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 import MediaNotificationService from "../services/MediaNotificationService";
 
 const AudioContext = createContext();
@@ -96,27 +99,23 @@ async function fetchOnlineMetadata(filename, existingArtist) {
 // ─── Provider ─────────────────────────────────────────────────────────────────
 export function AudioProvider({ children }) {
 
-  // ── Refs: always current, safe inside any async callback ──────────────────
   const soundRef             = useRef(null);
-  const isSoundLoadedRef     = useRef(false);   // mirrors isSoundLoaded state
-  const repeatModeRef        = useRef("off");   // mirrors repeatMode state
-  const shuffleModeRef       = useRef(false);   // mirrors shuffleMode state
-  const audioFilesRef        = useRef([]);      // mirrors audioFiles state
-  const currentIdxRef        = useRef(0);       // mirrors currentTrackIndex state
-  const isPlayingRef         = useRef(false);   // mirrors isPlaying state
+  const isSoundLoadedRef     = useRef(false);
+  const repeatModeRef        = useRef("off");
+  const shuffleModeRef       = useRef(false);
+  const audioFilesRef        = useRef([]);
+  const currentIdxRef        = useRef(0);
+  const isPlayingRef         = useRef(false);
   const appStateRef          = useRef(AppState.currentState);
 
-  // ── Stable BT callback refs (set every render, called by the one-time setup)
   const btPlayRef   = useRef(null);
   const btPauseRef  = useRef(null);
   const btNextRef   = useRef(null);
   const btPrevRef   = useRef(null);
   const btStopRef   = useRef(null);
 
-  // ── ref that always points to the latest handleTrackEnd implementation ─────
   const handleTrackEndRef = useRef(null);
 
-  // ── State ─────────────────────────────────────────────────────────────────
   const [audioFiles,         setAudioFiles]         = useState([]);
   const [filteredAudioFiles, setFilteredAudioFiles] = useState([]);
   const [currentTrackIndex,  setCurrentTrackIndex]  = useState(0);
@@ -135,7 +134,6 @@ export function AudioProvider({ children }) {
 
   const defaultImage = require("../assets/images/KingzPlaylogo2.png");
 
-  // ── Keep refs in sync with state ──────────────────────────────────────────
   useEffect(() => { repeatModeRef.current    = repeatMode;        }, [repeatMode]);
   useEffect(() => { shuffleModeRef.current   = shuffleMode;       }, [shuffleMode]);
   useEffect(() => { audioFilesRef.current    = audioFiles;        }, [audioFiles]);
@@ -143,7 +141,6 @@ export function AudioProvider({ children }) {
   useEffect(() => { isPlayingRef.current     = isPlaying;         }, [isPlaying]);
   useEffect(() => { isSoundLoadedRef.current = isSoundLoaded;     }, [isSoundLoaded]);
 
-  // ── Audio mode ────────────────────────────────────────────────────────────
   useEffect(() => {
     Audio.setAudioModeAsync({
       staysActiveInBackground: true,
@@ -156,25 +153,21 @@ export function AudioProvider({ children }) {
     }).catch(console.error);
   }, []);
 
-  // ── AppState ──────────────────────────────────────────────────────────────
   useEffect(() => {
     const sub = AppState.addEventListener("change", (s) => { appStateRef.current = s; });
     return () => sub.remove();
   }, []);
 
-  // ── Favorites: load persisted on mount ───────────────────────────────────
   useEffect(() => {
     AsyncStorage.getItem(FAVORITES_KEY)
       .then((v) => { if (v) setFavorites(JSON.parse(v)); })
       .catch(console.error);
   }, []);
 
-  // ── Favorites: save whenever they change ─────────────────────────────────
   useEffect(() => {
     AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites)).catch(console.error);
   }, [favorites]);
 
-  // ── MediaNotificationService: ONE-TIME setup via stable refs ─────────────
   useEffect(() => {
     MediaNotificationService.createAndroidChannel();
     MediaNotificationService.setup({
@@ -187,134 +180,115 @@ export function AudioProvider({ children }) {
     return () => MediaNotificationService.destroy();
   }, []);
 
-  // ── Load on mount / track change ─────────────────────────────────────────
   useEffect(() => { getPermissionsAndLoadAudio(); }, []);
   useEffect(() => {
     if (audioFiles.length > 0) loadAudio();
-  }, [currentTrackIndex, audioFiles.length]);
+  }, [currentTrackIndex, audioFiles.length]); // eslint-disable-line
 
   // ─────────────────────────────────────────────────────────────────────────
   const getPermissionsAndLoadAudio = async () => {
     try {
+      // ── Android 13+ requires POST_NOTIFICATIONS at runtime ──────────────
+      if (Platform.OS === "android" && Platform.Version >= 33) {
+        const { status: notifStatus } = await Notifications.requestPermissionsAsync();
+        if (notifStatus !== "granted") {
+          console.warn("[KingzPlay] Notification permission denied — media controls may not show");
+        }
+      }
+
+      // ── Media library permission ─────────────────────────────────────────
+      // On Android 12 and below this requests READ_EXTERNAL_STORAGE.
+      // On Android 13+ expo-media-library automatically requests READ_MEDIA_AUDIO.
       const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== "granted") return;
+      if (status !== "granted") {
+        console.warn("[KingzPlay] Media library permission denied");
+        return;
+      }
+
       setHasPermissions(true);
+
       const total = await MediaLibrary.getAssetsAsync({ mediaType: "audio", first: 1 });
       setTotalAudioCount(total.totalCount);
+
       const media = await MediaLibrary.getAssetsAsync({ mediaType: "audio", first: 1000 });
-      
+
       const basicAssets = await Promise.all(
         media.assets.map(async (asset) => {
           try {
             const info = await MediaLibrary.getAssetInfoAsync(asset.id);
             const localUri = info.localUri || asset.uri;
-            // Try to extract artist from filename if not available
-            let artist = null;
-            if (info.artist && info.artist !== "Unknown Artist") {
-              artist = info.artist;
-            }
-            
-            return { 
-              ...asset, 
-              localUri, 
-              artist: artist, 
-              album: info.album || null,
-              duration: info.duration, 
-              embeddedArtwork: null, 
-              folderArtwork: null,
-              onlineArtwork: null, 
-              metadataLoaded: false 
+            const mlArtist = info.artist && info.artist !== "Unknown Artist" ? info.artist : null;
+            return {
+              ...asset, localUri, artist: mlArtist, album: info.album || null,
+              duration: info.duration, embeddedArtwork: null, folderArtwork: null,
+              onlineArtwork: null, metadataLoaded: false,
             };
           } catch {
-            return { 
-              ...asset, 
-              localUri: asset.uri, 
-              artist: null, 
-              album: null,
-              embeddedArtwork: null, 
-              folderArtwork: null, 
-              onlineArtwork: null, 
-              metadataLoaded: false 
+            return {
+              ...asset, localUri: asset.uri, artist: null, album: null,
+              embeddedArtwork: null, folderArtwork: null, onlineArtwork: null,
+              metadataLoaded: false,
             };
           }
         })
       );
-      
+
       setAudioFiles(basicAssets);
       setFilteredAudioFiles(basicAssets);
-      
-      // Start enriching metadata in background for all tracks
+
+      // Enrich metadata in background for all tracks
       basicAssets.forEach((track, index) => {
         enrichTrackMetadata(track, index);
       });
-      
-    } catch (e) { console.error("Error loading audio:", e); }
+
+    } catch (e) {
+      console.error("Error loading audio:", e);
+    }
   };
 
   const enrichTrackMetadata = useCallback(async (track, index) => {
     if (!track || track.metadataLoaded || metadataCache[track.id]) return;
-    
+
     setMetadataCache((prev) => ({ ...prev, [track.id]: true }));
     const localUri = track.localUri || track.uri;
     const update = { metadataLoaded: true };
-    
+
     try {
-      // Extract embedded metadata
       const embedded = await extractEmbeddedArtwork(localUri);
-      if (embedded.artwork) {
-        update.embeddedArtwork = embedded.artwork;
-        console.log("Found embedded artwork for:", track.filename);
-      }
-      if (embedded.artist) {
-        update.artist = embedded.artist;
-        console.log("Found embedded artist:", embedded.artist, "for:", track.filename);
-      }
-      
-      // If no embedded artwork, try folder art
+      if (embedded.artwork) update.embeddedArtwork = embedded.artwork;
+      if (embedded.artist)  update.artist = embedded.artist;
+
       if (!update.embeddedArtwork) {
         const fa = await findFolderArt(localUri);
-        if (fa) {
-          update.folderArtwork = fa;
-          console.log("Found folder artwork for:", track.filename);
-        }
+        if (fa) update.folderArtwork = fa;
       }
-      
-      // If still no artwork, try online
+
       if (!update.embeddedArtwork && !update.folderArtwork) {
         const online = await fetchOnlineMetadata(track.filename, update.artist || track.artist);
-        if (online?.artist && !update.artist) {
-          update.artist = online.artist;
-          console.log("Found online artist:", online.artist, "for:", track.filename);
-        }
-        if (online?.albumArtUrl) {
-          update.onlineArtwork = online.albumArtUrl;
-          console.log("Found online artwork for:", track.filename);
-        }
+        if (online?.artist && !update.artist) update.artist = online.artist;
+        if (online?.albumArtUrl) update.onlineArtwork = online.albumArtUrl;
       }
-      
-      // Update state with enriched metadata
+
       setAudioFiles((prev) => {
         const next = [...prev];
-        if (next[index]) {
-          next[index] = { ...next[index], ...update };
-        }
+        if (next[index]) next[index] = { ...next[index], ...update };
         return next;
       });
-      
+
       setFilteredAudioFiles((prev) =>
         prev.map((f) => (f.id === track.id ? { ...f, ...update } : f))
       );
-      
-      // If this is the current track, update notification
+
+      // If this is the current track, update the notification with new artwork
       if (currentIdxRef.current === index) {
         const updatedTrack = { ...track, ...update };
         MediaNotificationService.update(updatedTrack, isPlayingRef.current, positionMillis);
       }
-      
+
     } catch (error) {
       console.error("Error enriching metadata for:", track.filename, error);
     }
-  }, [metadataCache, currentIdxRef, isPlayingRef, positionMillis]);
+  }, [metadataCache, positionMillis]);
 
   // ─── loadAudio ────────────────────────────────────────────────────────────
   const loadAudio = async () => {
@@ -346,10 +320,8 @@ export function AudioProvider({ children }) {
       isSoundLoadedRef.current = true;
       setIsLoading(false);
 
-      // Update notification with current track
       MediaNotificationService.update(track, isPlayingRef.current, 0);
 
-      // Enrich metadata if not already loaded
       if (!track.metadataLoaded && !metadataCache[track.id]) {
         enrichTrackMetadata(track, currentTrackIndex);
       }
@@ -367,7 +339,7 @@ export function AudioProvider({ children }) {
     setSliderValue(value);
     setPositionMillis(value);
     if (soundRef.current && isSoundLoadedRef.current) {
-      try { 
+      try {
         await soundRef.current.setPositionAsync(value);
         const track = audioFilesRef.current[currentIdxRef.current];
         const status = await soundRef.current.getStatusAsync();
@@ -376,9 +348,9 @@ export function AudioProvider({ children }) {
     }
   };
 
-  // ─── BT Ref callbacks ───────────────────────────────────────────────
+  // ─── BT Ref callbacks ────────────────────────────────────────────────────
   useEffect(() => {
-    btPlayRef.current  = async () => {
+    btPlayRef.current = async () => {
       if (soundRef.current) {
         await soundRef.current.playAsync();
         const status = await soundRef.current.getStatusAsync();
@@ -387,7 +359,7 @@ export function AudioProvider({ children }) {
         MediaNotificationService.update(t, true, status.positionMillis);
       }
     };
-    
+
     btPauseRef.current = async () => {
       if (soundRef.current) {
         await soundRef.current.pauseAsync();
@@ -397,7 +369,7 @@ export function AudioProvider({ children }) {
         MediaNotificationService.update(t, false, status.positionMillis);
       }
     };
-    
+
     btNextRef.current  = () => playNextTrack();
     btPrevRef.current  = () => playPreviousTrack();
     btStopRef.current  = async () => {
@@ -418,7 +390,7 @@ export function AudioProvider({ children }) {
     });
   }, [playNextTrack, playPreviousTrack]);
 
-  // handleStatusUpdate
+  // ─── handleStatusUpdate ──────────────────────────────────────────────────
   const handleStatusUpdate = useCallback((status) => {
     if (!status.isLoaded) return;
 
@@ -440,14 +412,12 @@ export function AudioProvider({ children }) {
     }
   }, []);
 
-  // ─── handleTrackEnd ───────────────────────────────────────────────────────
+  // ─── handleTrackEnd ──────────────────────────────────────────────────────
   const handleTrackEnd = useCallback(() => {
     const mode  = repeatModeRef.current;
     const files = audioFilesRef.current;
     const idx   = currentIdxRef.current;
     const snd   = soundRef.current;
-
-    console.log(`[TrackEnd] mode=${mode} idx=${idx}/${files.length}`);
 
     if (mode === "one") {
       if (snd) {
@@ -492,16 +462,15 @@ export function AudioProvider({ children }) {
     handleTrackEndRef.current = handleTrackEnd;
   }, [handleTrackEnd]);
 
-  // ─── playPauseHandler ─────────────────────────────────────────────────────
+  // ─── playPauseHandler ────────────────────────────────────────────────────
   const playPauseHandler = async () => {
     if (isLoading) return;
-    if (!isSoundLoadedRef.current) { 
-      await loadAudio(); 
-      return; 
+    if (!isSoundLoadedRef.current) {
+      await loadAudio();
+      return;
     }
     try {
       const track = audioFilesRef.current[currentIdxRef.current];
-      
       if (isPlayingRef.current) {
         await soundRef.current.pauseAsync();
         const status = await soundRef.current.getStatusAsync();
@@ -513,19 +482,19 @@ export function AudioProvider({ children }) {
         setIsPlaying(true);
         MediaNotificationService.update(track, true, status.positionMillis);
       }
-    } catch (e) { 
+    } catch (e) {
       console.error("Play/Pause error:", e);
     }
   };
 
-  // ─── playTrack ────────────────────────────────────────────────────────────
+  // ─── playTrack ───────────────────────────────────────────────────────────
   const playTrack = useCallback((index) => {
     isPlayingRef.current = true;
     setIsPlaying(true);
     setCurrentTrackIndex(index);
   }, []);
 
-  // ─── playNextTrack ────────────────────────────────────────────────────────
+  // ─── playNextTrack ───────────────────────────────────────────────────────
   const playNextTrack = useCallback((sourceList) => {
     const files = audioFilesRef.current;
     const queue = sourceList || files;
@@ -539,7 +508,7 @@ export function AudioProvider({ children }) {
     if (next !== -1) playTrack(next);
   }, [playTrack]);
 
-  // ─── playPreviousTrack ────────────────────────────────────────────────────
+  // ─── playPreviousTrack ───────────────────────────────────────────────────
   const playPreviousTrack = useCallback((sourceList) => {
     const files = audioFilesRef.current;
     const queue = sourceList || files;
@@ -563,7 +532,7 @@ export function AudioProvider({ children }) {
     });
   };
 
-  // ─── Favorites ────────────────────────────────────────────────────────────
+  // ─── Favorites ───────────────────────────────────────────────────────────
   const toggleFavorite = useCallback((trackId) => {
     const id = trackId || audioFilesRef.current[currentIdxRef.current]?.id;
     if (!id) return;
@@ -585,37 +554,22 @@ export function AudioProvider({ children }) {
     setFavorites((p) => p.filter((id) => id !== trackId));
   };
 
-  // Improved getAlbumArt function with better fallback handling
   const getAlbumArt = useCallback((track) => {
     if (!track) return defaultImage;
-    
-    // Try each artwork source in order of preference
-    if (track.embeddedArtwork) {
-      // Check if it's a valid base64 string
-      if (typeof track.embeddedArtwork === 'string' && track.embeddedArtwork.startsWith('data:image')) {
-        return { uri: track.embeddedArtwork };
-      }
+    if (track.embeddedArtwork && typeof track.embeddedArtwork === "string"
+      && track.embeddedArtwork.startsWith("data:image")) {
+      return { uri: track.embeddedArtwork };
     }
-    
-    if (track.folderArtwork) {
-      // Check if it's a valid file URI
-      if (typeof track.folderArtwork === 'string') {
-        return { uri: track.folderArtwork };
-      }
+    if (track.folderArtwork && typeof track.folderArtwork === "string") {
+      return { uri: track.folderArtwork };
     }
-    
-    if (track.onlineArtwork) {
-      // Check if it's a valid URL
-      if (typeof track.onlineArtwork === 'string' && track.onlineArtwork.startsWith('http')) {
-        return { uri: track.onlineArtwork };
-      }
+    if (track.onlineArtwork && typeof track.onlineArtwork === "string"
+      && track.onlineArtwork.startsWith("http")) {
+      return { uri: track.onlineArtwork };
     }
-    
-    // Fallback to default image
     return defaultImage;
   }, [defaultImage]);
 
-  // Get artist name with proper fallback
   const getArtistName = useCallback((track) => {
     if (!track) return "Unknown Artist";
     if (track.artist && track.artist !== "Unknown Artist" && track.artist.trim() !== "") {
@@ -640,7 +594,7 @@ export function AudioProvider({ children }) {
       playPauseHandler, playNextTrack, playPreviousTrack,
       toggleShuffle, toggleRepeat, seekHandler,
       toggleFavorite, isFavorite, deleteTrack,
-      getAlbumArt, playTrack, getArtistName, // Added getArtistName to context
+      getAlbumArt, playTrack, getArtistName,
     }}>
       {children}
     </AudioContext.Provider>
